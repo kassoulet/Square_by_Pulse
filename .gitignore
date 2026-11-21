@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+/SQUARE.EXE
+/SQUARE.PAK
+/*.LZW
+/SQUADEMO.XM
+/SQUARE.NFO
+/FILE_ID.DIZ

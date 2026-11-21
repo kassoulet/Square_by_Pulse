@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="generator" content="pandoc" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes" />
+  <title>SQUARE - effects (inventory, not yet ported)</title>
+  <style>
+    code{white-space: pre-wrap;}
+    span.smallcaps{font-variant: small-caps;}
+    div.columns{display: flex; gap: min(4vw, 1.5em);}
+    div.column{flex: auto; overflow-x: auto;}
+    div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+    /* The extra [class] is a hack that increases specificity enough to
+       override a similar rule in reveal.js */
+    ul.task-list[class]{list-style: none;}
+    ul.task-list li input[type="checkbox"] {
+      font-size: inherit;
+      width: 0.8em;
+      margin: 0 0.8em 0.2em -1.6em;
+      vertical-align: middle;
+    }
+    .display.math{display: block; text-align: center; margin: 0.5rem auto;}
+  </style>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+  :root{--bg:#fff;--fg:#1d1d22;--mut:#666;--ac:#c4155a;--code:#f3f3f6;--bd:#d8d8e0}
+  @media (prefers-color-scheme:dark){:root{--bg:#0b0b10;--fg:#d8d8e0;--mut:#9a9aa8;--ac:#ff6a9a;--code:#17171f;--bd:#33333f}}
+  *{box-sizing:border-box}
+  body{margin:0 auto;max-width:62rem;padding:0 16px;background:var(--bg);color:var(--fg);font:16px/1.55 system-ui,sans-serif}
+  #wunav{display:flex;gap:16px;flex-wrap:wrap;padding-top:12px;padding-bottom:8px;border-bottom:1px solid var(--bd);font-size:14px}
+  a{color:var(--ac)}
+  h1,h2,h3,h4{line-height:1.25;margin-top:1.8em}
+  img{max-width:100%;height:auto;image-rendering:auto}
+  pre{background:var(--code);border:1px solid var(--bd);border-radius:4px;padding:10px 12px;overflow-x:auto;font-size:13px;line-height:1.4}
+  code{background:var(--code);padding:1px 4px;border-radius:3px;font-size:.92em;overflow-wrap:anywhere}
+  pre code{background:none;padding:0;overflow-wrap:normal}
+  table{border-collapse:collapse;display:block;overflow-x:auto;max-width:100%}
+  td,th{border:1px solid var(--bd);padding:4px 8px}
+  blockquote{border-left:3px solid var(--bd);margin-left:0;padding-left:14px;color:var(--mut)}
+  #TOC{font-size:14px}#TOC ul{padding-left:1.2em}
+  #TOC>ul{padding-left:0;list-style:none}
+  details#toc-box{margin:12px 0}
+  </style>
+</head>
+<body>
+<nav id="wunav"><a href="../index.html">&larr; the demo</a> <a href="WRITEUP-asm.html">asm</a> <a href="WRITEUP-effects.html">effects</a> <a href="https://github.com/kassoulet/Square_by_Pulse">README on GitHub</a></nav>
+<nav id="TOC" role="doc-toc">
+<ul>
+<li><a href="#square---effects-inventory-not-yet-ported"
+id="toc-square---effects-inventory-not-yet-ported">SQUARE - effects
+(inventory, not yet ported)</a>
+<ul>
+<li><a href="#the-people-scene-ported"
+id="toc-the-people-scene-ported">The people scene (ported)</a></li>
+<li><a href="#scenes-run-from-the-recompiled-original-code-session-6"
+id="toc-scenes-run-from-the-recompiled-original-code-session-6">Scenes
+run from the recompiled original code (session 6)</a></li>
+</ul></li>
+</ul>
+</nav>
+<h1 id="square---effects-inventory-not-yet-ported">SQUARE - effects
+(inventory, not yet ported)</h1>
+<p><img src="figures/pak_textures.png" alt="PAK textures" /></p>
+<p>The scene list below comes from the file names the code loads
+(strings 0x101000-0x102500) and the order of the scene calls in
+<code>main</code>; the effects themselves are not analysed yet.</p>
+<p>Canyon fly-through (<code>canyon.fpl/.fbp/.fad</code>), molecules
+(<code>caffeine</code>, <code>ecstasy</code>, <code>c6h12o5</code>,
+<code>dna</code> <code>.mol</code>), pinblob, cubes
+(<code>cubes.fpl</code>, <code>rayes</code>, <code>back2</code>), planet
+(<code>plnt.*</code>, <code>sunflare</code>), brain / x-ray vertebrae
+(<code>senseof</code>, <code>braino2</code>, <code>dunetex</code>),
+tunnel (<code>tunnel.gst/.fad</code>, <code>krol1..3</code>), bjork
+scene (<code>cr1..5</code>, <code>palflow</code>,
+<code>*bulbe/*spike.dat</code>), plasma, title/logo, people
+(<code>people.lzw</code>), the "secret zebou" picture
+(<code>zebou.lzw</code>). Music: <code>SQUADEMO.XM</code>, 263 s, 56
+orders. The code reads the music position as order*64+row, so every
+scene is a function of music position and a 60 Hz tick counter.</p>
+<h2 id="the-people-scene-ported">The people scene (ported)</h2>
+<p><img src="figures/people_scene_player.png"
+alt="people scene in the JS player" /></p>
+<p>Last scene (<code>0x390ab</code>, from 3:38): 117 grey DCT frames
+from <code>PEOPLE.LZW</code> (<code>web/js/lzw.js</code> +
+<code>dct.js</code>) are cross-faded with a sine-modulated brightness
+(<code>people.js</code>), the 160x120 window is doubled to 320x240, then
+a <strong>radial zoom blur</strong> (<code>blur.js</code>, guest
+<code>0x2a8e8</code> + the generated code at <code>0x58000</code>)
+smears each pixel along a bilinear sample taken toward a centre that two
+sums of three sines wander around, and the PULSE / SQUARE / 1997 /
+LOGOUT box from <code>logo.raw</code> (read from the original
+<code>SQUARE.PAK</code> in the browser) is stamped on top. Blend,
+upsample, blur and logo are bit-exact against the original run under
+Unicorn; the frame position and the palette fade-in are modelled. See
+<code>re/NOTES.md</code> (Session 5).</p>
+<h2 id="scenes-run-from-the-recompiled-original-code-session-6">Scenes
+run from the recompiled original code (session 6)</h2>
+<p>The opening <strong>portrait</strong> scene (0x29a81, 0:00-0:21,
+shown 320x480 on a 4:3 screen) and the <strong>dune</strong> scene
+(0x338a5, 3:28-3:32: the texture dunetex.raw scaled by a double, a ramp,
+noise 0x1e27a and the radial blur 0x2a8e8, palette crossfade by the ISR)
+are not ported to hand-written effects: the player runs their original
+code translated to JS (<code>web/js/sqr.gen.mjs</code>) frame by frame,
+on a 43-51 KB entry snapshot and the original SQUARE.PAK. The result
+matches the original's frames bit for bit (749 of 752 flips; the DAC
+palette writes are identical) but it is not an understanding of the
+effect: for the portrait scene the per-pixel loop 0x29ea8
+(<code>dst[i] = lut[(((a[i]&lt;&lt;2)+b[i])&lt;&lt;8)+c[i]]</code> with
+a random row offset, then the line drawer 0x2c25b and the blend 0x31c33
+for the title) was what cost the 70-90 ms per frame in JS; it, the
+4-neighbour blur and the blend are now hand-written JS patches
+(re/patches.env), 8 ms per frame.</p>
+</body>
+</html>

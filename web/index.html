@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SQUARE - Pulse, JS port (work in progress)</title>
+<style>
+:root{--bg:#0b0b10;--fg:#d8d8e0;--ac:#6fd0a0}
+body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.4 system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;min-height:100vh}
+h1{font-size:18px;letter-spacing:3px;margin:10px 12px 0}
+#stage{aspect-ratio:4/3;width:min(calc(100% - 24px),calc((100vh - 150px)*4/3));background:#000;border:1px solid #3a3a48;margin:8px 12px;display:flex;align-items:center;justify-content:center;text-align:center}
+canvas{width:100%;height:100%;display:block}
+#bar{display:flex;gap:6px;align-items:center;flex-wrap:wrap;width:calc(100% - 24px);max-width:900px;margin:0 12px 8px}
+button{background:#1d1d28;color:var(--fg);border:1px solid #444;border-radius:4px;padding:6px 12px;cursor:pointer;font:inherit}
+#seek{flex:1;min-width:160px;accent-color:var(--ac)}a{color:var(--ac)}p{max-width:640px;margin:4px 12px}
+</style></head><body>
+<h1>SQUARE</h1><small>Pulse (pLsE), 1998 - JavaScript port: work in progress (music + 3 scenes)</small>
+<div id="stage"><canvas id="c" width="320" height="200"></canvas></div>
+<div id="bar"><button id="pp">Play</button><button id="b5">-5s</button><input id="seek" type="range" min="0" max="263" step="1" value="0" aria-label="Seek"><button id="f5">+5s</button><span id="tm">0:00 / 4:23</span></div>
+<p>Three scenes are shown: the opening <code>portrait</code> (0:00-0:21) and the <code>dune</code> texture (3:28-3:32) run the original's own code, statically recompiled to JS and run frame by frame (about 50-90 ms per frame, so the picture can lag the music); the last scene, <code>people</code> (from 3:38), is a hand port, partly approximated. The other scenes are not ported yet (see the <a href="writeups/WRITEUP-effects.html">write-ups</a> and <code>re/NOTES.md</code>). The 320x200 frame is shown 4:3 as the original's pixels are not square. The music is the original <code>SQUADEMO.XM</code> through libopenmpt.</p>
+<script type="module">
+const $=id=>document.getElementById(id),c=$('c').getContext('2d');c.fillStyle='#000';c.fillRect(0,0,320,200);c.fillStyle='#888';c.font='16px sans-serif';c.textAlign='center';c.fillText('press Play (opening scene) or seek to 3:28 / 3:38',160,100);
+const xm=await (await fetch('assets/xm_times.json')).json(),dur=xm.length;$('seek').max=Math.floor(dur);
+const fmt=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
+let cp,ac,playing=false,t0=0,w0=0,started=false;const now=()=>performance.now()/1000,cur=()=>playing?Math.min(dur,t0+now()-w0):t0;
+async function init(){if(started)return;started=true;const {ChiptuneJsPlayer}=await import('./vendor/chiptune3.js');ac=new AudioContext();cp=new ChiptuneJsPlayer({context:ac,repeatCount:0});await new Promise(r=>cp.onInitialized(r));cp.play(await (await fetch('assets/music/SQUADEMO.XM')).arrayBuffer());playing=true;t0=0;w0=now();}
+async function pp(){if(!started){await init();}else if(playing){t0=cur();playing=false;cp.pause();}else{cp.unpause();w0=now();playing=true;}$('pp').textContent=playing?'Pause':'Play';}
+function seek(t){if(!started)return;t=Math.max(0,Math.min(dur-.01,t));t0=t;w0=now();cp.setPos(t);}
+$('pp').onclick=pp;$('b5').onclick=()=>seek(cur()-5);$('f5').onclick=()=>seek(cur()+5);$('seek').oninput=e=>seek(+e.target.value);
+addEventListener('keydown',e=>{if(e.key==='p'||e.key===' '){e.preventDefault();pp();}if(e.key==='ArrowLeft')seek(cur()-5);if(e.key==='ArrowRight')seek(cur()+5);});
+// ---- people scene (last scene, from t=218.001 s): PEOPLE.LZW -> lzw.js -> dct.js frames; blend + 2x upsample exact (golden-diffed), radial blur (bit-exact, blur.js), logo overlay (exact composite), palette fade-in (approximated) ----
+import {lzwDecode} from './js/lzw.js';import {decodeFrames} from './js/dct.js';import {weights,tab,up2x} from './js/people.js';import {blur,blurArgs} from './js/blur.js';import {pakOpen} from './js/pak.js';
+const T0=218.001,rows=xm.rows,img=c.createImageData(320,200),pal=new Uint8Array(768);
+let F=null,P=null,SS=null,RP=null,LG=null;
+async function peopleInit(){const l=lzwDecode(new Uint8Array(await (await fetch('assets/PEOPLE.LZW')).arrayBuffer()));F=decodeFrames(l,117).map(f=>f.pix);const lr=pakOpen(new Uint8Array(await (await fetch('assets/SQUARE.PAK')).arrayBuffer())).get('logo.raw');RP=lr.subarray(0,768);LG=Uint8Array.from(lr.subarray(768,768+64000),v=>v===255?255:v+128);
+ // frame position p per 60 Hz tick: p+=(S+.2)*.4, S*=.989, S=1 when song position>>5 changes (original loop 0x391fe..0x3925b); 117 frames, then the scene restarts
+ const n=Math.ceil((dur-T0)*60);P=new Float32Array(n);SS=new Float32Array(n);let p=0,S=1,last=-1,ri=0;for(let k=0;k<n;k++){const t=T0+k/60;while(ri+1<rows.length&&rows[ri+1][2]<=t)ri++;const pos=(rows[ri][0]*64+rows[ri][1])>>5;if(pos!==last){last=pos;S=1;}
+  P[k]=p;SS[k]=S;p=Math.fround(p+(S+.2)*.4);S=Math.fround(S*.989);if(p>=116){p=0;S=1;}}}
+function drawPeople(t){if(!F||t<T0)return;if(c.canvas.height!==200)c.canvas.height=200;const k=Math.min(P.length-1,Math.floor((t-T0)*60)),p=P[k],a=Math.trunc(p),[k1,k2]=weights(p),A=F[a],B=F[a+1],s=new Uint8Array(27648);
+ for(let i=0;i<27648;i++)s[i]=tab(((A[i]*k1)>>7)+((B[i]*k2)>>7));const d=up2x(s),v=d.subarray(6400,6400+64000),o=img.data;
+ blur(v,...blurArgs(p,SS[k]));   // radial zoom blur 0x2a8e8, centre steered by the noise curves
+ const f=Math.min(1,((t-T0)*30+1)/150),q=x=>{x=Math.floor(x*f);return (x<<2)|(x>>4);};   // fade-in over 5 s (approximated: 11 of 800 sampled DAC values off by one)
+ for(let i=0;i<128;i++)pal[3*i]=pal[3*i+1]=pal[3*i+2]=q(Math.min(63,i>>1));for(let i=128;i<256;i++)for(let j=0;j<3;j++)pal[3*i+j]=q(RP[3*(i-128)+j]);
+ for(let i=0;i<64000;i++){const g=LG[i]===255?tab(v[i]):LG[i];o[4*i]=pal[3*g];o[4*i+1]=pal[3*g+1];o[4*i+2]=pal[3*g+2];o[4*i+3]=255;}c.putImageData(img,0,0);}
+// ---- recompiled scenes: the ORIGINAL code of a scene statically recompiled to JS (re/x86js.py -> js/sqr.gen.mjs) running on a ~50 KB entry snapshot (assets/rc*.bin.gz) and the original PAK; driver js/rcscene.mjs
+// (steps to each flip, checkpoints for seeking, time-budgeted so the UI stays alive: the picture may lag the music, ~50-90 ms per frame in JS).
+// 'portrait' 0x29a81 = the opening (0 - 21 s, 320x480, 631 of 632 frames bit-exact); 'dune' 0x338a5 (207.8 - 211.8 s, 118 of 120 exact); DAC writes exact for both.
+const RCS=[{T:0,N:632,rows:480,a:'rc29'},{T:73.43,N:157,rows:200,a:'rc1fa'},{T:207.8,N:120,rows:200,a:'rc338'}];let pkB=null;
+async function rcInit(s){s.st=1;const [{RcScene,unpackInit},{pakOpen:po}]=await Promise.all([import('./js/rcscene.mjs'),import('./js/pak.js')]);
+ const gz=async u=>new Uint8Array(await new Response((await fetch(u)).body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer());
+ pkB||=po(new Uint8Array(await (await fetch('assets/SQUARE.PAK')).arrayBuffer()));s.RC=new RcScene(unpackInit(await gz('assets/'+s.a+'.bin.gz')),pkB);s.img=c.createImageData(320,s.rows);s.st=2;}
+function drawRc(s,t){if(!s.st){rcInit(s);return;}if(s.st!==2)return;const n=Math.min(s.N-1,Math.floor((t-s.T)*30));
+ if(s.RC.frame(n,40)||s.RC.n>=0){if(c.canvas.height!==s.rows)c.canvas.height=s.rows;s.RC.rgba(s.img.data);c.putImageData(s.img,0,0);}}
+peopleInit();(function loop(){const t=cur();if(t>=T0)drawPeople(t);else{let a=null;for(const s of RCS){if(t>=s.T-1&&t<s.T&&!s.st)rcInit(s);if(t>=s.T&&t<s.T+s.N/30+.2)a=s;}if(a)drawRc(a,t);}requestAnimationFrame(loop);})();
+window.demoReady=true;
+setInterval(()=>{$('seek').value=cur();$('tm').textContent=fmt(cur())+' / '+fmt(dur);},250);
+</script></body></html>
