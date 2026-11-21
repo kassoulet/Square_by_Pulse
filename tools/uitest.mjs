@@ -29,7 +29,7 @@ await ev('document.getElementById("c").getContext("2d").clearRect(0,0,320,200)')
 const lit2=await ev('(()=>{const d=document.getElementById("c").getContext("2d").getImageData(0,0,320,200).data;let n=0;for(let i=0;i<d.length;i+=4)if(d[i]>20)n++;return n})()');ok(lit2>2000,'recompiled dune scene (207.8-211.8 s) draws: '+lit2+' lit pixels');
 await ev('(()=>{const e=document.getElementById("seek");e.value=8;e.dispatchEvent(new Event("input"));})()');await wait(8000);
 const o=await ev('(()=>{const k=document.getElementById("c"),d=k.getContext("2d").getImageData(0,0,320,k.height).data;let n=0;for(let i=0;i<d.length;i+=4)if(d[i]>20)n++;return [k.height,n]})()');ok(o[0]===480&&o[1]>2000,'recompiled portrait scene (0-21 s) draws at 8 s: canvas height '+o[0]+', '+o[1]+' lit pixels');
-for(const [t,w,nm] of [[75,6000,'0x1faa1 (73-78 s)']]){
+for(const [t,w,nm] of [[75,6000,'0x1faa1 (73-78 s)'],[25,9000,'0x366f2 (21-52 s)'],[55,9000,'0x305f7 (52-73 s)']]){
 await ev('(()=>{const e=document.getElementById("seek");e.value='+t+';e.dispatchEvent(new Event("input"));})()');await wait(w);
 const q=await ev('(()=>{const k=document.getElementById("c"),d=k.getContext("2d").getImageData(0,0,320,200).data;let n=0;for(let i=0;i<d.length;i+=4)if(d[i]>20||d[i+1]>20||d[i+2]>20)n++;return n})()');ok(q>300,'recompiled '+nm+' draws at '+t+' s: '+q+' lit pixels');}
 }catch(e){console.log('FAIL',e);bad++;}

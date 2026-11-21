@@ -6,9 +6,23 @@ export const f=new Float64Array(16), S={sp:8,fsw:0,pos:()=>0,present:()=>{},blk:
 export const fpush=v=>{f[--S.sp]=v;}, fxch=i=>{const t=f[S.sp];f[S.sp]=f[S.sp+i];f[S.sp+i]=t;}, sx16=v=>v<<16>>16;
 export const fist=v=>{if(!(Math.abs(v)<2147483648))return -2147483648;const r=Math.round(v);return (Math.abs(v-Math.trunc(v))===0.5&&(r&1))?r-1:r|0;};   // round to nearest even
 const F=Math.fround;
-export const fp_add=v=>{f[S.sp]=F(f[S.sp]+v);},fp_mul=v=>{f[S.sp]=F(f[S.sp]*v);},fp_sub=v=>{f[S.sp]=F(f[S.sp]-v);},fp_subr=v=>{f[S.sp]=F(v-f[S.sp]);},fp_div=v=>{f[S.sp]=F(f[S.sp]/v);},fp_divr=v=>{f[S.sp]=F(v/f[S.sp]);};
-export const fp_add_st=i=>{f[S.sp]=F(f[S.sp]+f[S.sp+i]);},fp_mul_st=i=>{f[S.sp]=F(f[S.sp]*f[S.sp+i]);},fp_sub_st=i=>{f[S.sp]=F(f[S.sp]-f[S.sp+i]);},fp_subr_st=i=>{f[S.sp]=F(f[S.sp+i]-f[S.sp]);},fp_div_st=i=>{f[S.sp]=F(f[S.sp]/f[S.sp+i]);},fp_divr_st=i=>{f[S.sp]=F(f[S.sp+i]/f[S.sp]);};
-export const fp_add_to=i=>{f[S.sp+i]=F(f[S.sp+i]+f[S.sp]);},fp_mul_to=i=>{f[S.sp+i]=F(f[S.sp+i]*f[S.sp]);},fp_sub_to=i=>{f[S.sp+i]=F(f[S.sp+i]-f[S.sp]);},fp_subr_to=i=>{f[S.sp+i]=F(f[S.sp]-f[S.sp+i]);},fp_div_to=i=>{f[S.sp+i]=F(f[S.sp+i]/f[S.sp]);},fp_divr_to=i=>{f[S.sp+i]=F(f[S.sp]/f[S.sp+i]);};
+const _d=new Float64Array(1),_u=new Uint32Array(_d.buffer);
+// 24-bit precision control: round a*b / a+b once to float32.  F(a*b) rounds twice (53 then 24 bits), which is wrong when the double result lands exactly on a float32 tie
+// and an operand is not itself a float32 (fld qword, native results); an error term of the exact operation settles the tie.
+const tie=p=>{_d[0]=p;return (_u[0]&0x1fffffff)===0x10000000;};
+const nudge=(p,up)=>{_d[0]=p;_u[0]+=up?1:-1;return F(_d[0]);};
+const mulr=(a,b)=>{const p=a*b,r=F(p);if(F(a)===a&&F(b)===b||!tie(p))return r;
+ let c=134217729*a,ah=c-(c-a),al=a-ah;c=134217729*b;const bh=c-(c-b),bl=b-bh;const e=((ah*bh-p)+ah*bl+al*bh)+al*bl;
+ return e===0?r:nudge(p,(e>0)===(p>0));};
+const divr=(a,b)=>{const p=a/b,r=F(p);if(F(a)===a&&F(b)===b||!tie(p))return r;
+ let c=134217729*p,ph=c-(c-p),pl=p-ph;c=134217729*b;const bh=c-(c-b),bl=b-bh;const m=((ph*bh-p*b)+ph*bl+pl*bh)+pl*bl;   // p*b = fl(p*b)+m exactly
+ const e=(a-p*b)-m;return e===0?r:nudge(p,(e>0)===(b>0)===(p>0));};   // e = a-p*b: true quotient is above p when e has the sign of b
+const addr=(a,b)=>{const p=a+b,r=F(p);if(F(a)===a&&F(b)===b||!tie(p))return r;
+ const bb=p-a,e=(a-(p-bb))+(b-bb);return e===0?r:nudge(p,(e>0)===(p>0));};
+
+export const fp_add=v=>{f[S.sp]=addr(f[S.sp],v);},fp_mul=v=>{f[S.sp]=mulr(f[S.sp],v);},fp_sub=v=>{f[S.sp]=addr(f[S.sp],-v);},fp_subr=v=>{f[S.sp]=addr(v,-f[S.sp]);},fp_div=v=>{f[S.sp]=divr(f[S.sp],v);},fp_divr=v=>{f[S.sp]=divr(v,f[S.sp]);};
+export const fp_add_st=i=>{f[S.sp]=addr(f[S.sp],f[S.sp+i]);},fp_mul_st=i=>{f[S.sp]=mulr(f[S.sp],f[S.sp+i]);},fp_sub_st=i=>{f[S.sp]=addr(f[S.sp],-f[S.sp+i]);},fp_subr_st=i=>{f[S.sp]=addr(f[S.sp+i],-f[S.sp]);},fp_div_st=i=>{f[S.sp]=divr(f[S.sp],f[S.sp+i]);},fp_divr_st=i=>{f[S.sp]=divr(f[S.sp+i],f[S.sp]);};
+export const fp_add_to=i=>{f[S.sp+i]=addr(f[S.sp+i],f[S.sp]);},fp_mul_to=i=>{f[S.sp+i]=mulr(f[S.sp+i],f[S.sp]);},fp_sub_to=i=>{f[S.sp+i]=addr(f[S.sp+i],-f[S.sp]);},fp_subr_to=i=>{f[S.sp+i]=addr(f[S.sp],-f[S.sp+i]);},fp_div_to=i=>{f[S.sp+i]=divr(f[S.sp+i],f[S.sp]);},fp_divr_to=i=>{f[S.sp+i]=divr(f[S.sp],f[S.sp+i]);};
 const cmp=(a,b)=>{S.fsw=a!==a||b!==b?0x4500:a>b?0:a<b?0x100:0x4000;};
 export const fp_com=v=>cmp(f[S.sp],v), fp_com_st=i=>cmp(f[S.sp],f[S.sp+i]);
 export const n_fpatan=()=>{fxch(1);const x=f[S.sp],y=f[S.sp+1];f[S.sp+1]=Math.atan2(y,x);S.sp++;};
