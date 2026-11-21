@@ -21,7 +21,8 @@ const xm=await (await fetch('assets/xm_times.json')).json(),dur=xm.length;$('see
 const fmt=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 let cp,ac,playing=false,t0=0,w0=0,started=false;const now=()=>performance.now()/1000,cur=()=>playing?Math.min(dur,t0+now()-w0):t0;
 async function init(){if(started)return;started=true;const {ChiptuneJsPlayer}=await import('./vendor/chiptune3.js');ac=new AudioContext();cp=new ChiptuneJsPlayer({context:ac,repeatCount:0});await new Promise(r=>cp.onInitialized(r));cp.play(await (await fetch('assets/music/SQUADEMO.XM')).arrayBuffer());playing=true;t0=0;w0=now();}
-async function pp(){if(!started){await init();}else if(playing){t0=cur();playing=false;cp.pause();}else{cp.unpause();w0=now();playing=true;}$('pp').textContent=playing?'Pause':'Play';}
+let ready=false;
+async function pp(){if(!ready)return;if(!started){await init();}else if(playing){t0=cur();playing=false;cp.pause();}else{cp.unpause();w0=now();playing=true;}$('pp').textContent=playing?'Pause':'Play';}
 function seek(t){if(!started)return;t=Math.max(0,Math.min(dur-.01,t));t0=t;w0=now();cp.setPos(t);}
 $('pp').onclick=pp;$('b5').onclick=()=>seek(cur()-5);$('f5').onclick=()=>seek(cur()+5);$('seek').oninput=e=>seek(+e.target.value);
 addEventListener('keydown',e=>{if(e.key==='p'||e.key===' '){e.preventDefault();pp();}if(e.key==='ArrowLeft')seek(cur()-5);if(e.key==='ArrowRight')seek(cur()+5);});
@@ -48,7 +49,10 @@ async function rcInit(s){s.st=1;const [{RcScene,unpackInit},{pakOpen:po}]=await 
  pkB||=po(new Uint8Array(await (await fetch('assets/SQUARE.PAK')).arrayBuffer()));s.RC=new RcScene(unpackInit(await gz('assets/'+s.a+'.bin.gz')),pkB);s.img=c.createImageData(320,s.rows);s.st=2;}
 function drawRc(s,t){if(!s.st){rcInit(s);return;}if(s.st!==2)return;const n=Math.min(s.N-1,Math.floor((t-s.T)*30));
  if(s.RC.frame(n,40)||s.RC.n>=0){if(c.canvas.height!==s.rows)c.canvas.height=s.rows;s.RC.rgba(s.img.data);c.putImageData(s.img,0,0);}}
-peopleInit();(function loop(){const t=cur();if(t>=T0)drawPeople(t);else{let a=null;for(const s of RCS){if(t>=s.T-1&&t<s.T&&!s.st)rcInit(s);if(t>=s.T&&t<s.T+s.N/30+.2)a=s;}if(a)drawRc(a,t);}requestAnimationFrame(loop);})();
-window.demoReady=true;
+// preload before Play is allowed (so nothing loads while the demo runs): people frames (PEOPLE.LZW + PAK, ~1.5 MB), the 5 recompiled scenes (import of sqr.gen.mjs, rc*.bin.gz, PAK) and the music module
+{const pb=$('pp'),ppTxt=pb.textContent;let n=0;const jobs=[peopleInit(),...RCS.map(s=>rcInit(s)),fetch('assets/music/SQUADEMO.XM').then(r=>r.arrayBuffer())],N=jobs.length;pb.textContent='Loading 0/'+N+'...';
+ jobs.forEach(p=>p.catch(e=>console.error(e)).then(()=>{pb.textContent='Loading '+(++n)+'/'+N+'...';}));
+ Promise.all(jobs.map(p=>p.catch(()=>0))).then(()=>{ready=true;pb.textContent=ppTxt;window.demoReady=true;});}
+(function loop(){const t=cur();if(t>=T0)drawPeople(t);else{let a=null;for(const s of RCS){if(t>=s.T-1&&t<s.T&&!s.st)rcInit(s);if(t>=s.T&&t<s.T+s.N/30+.2)a=s;}if(a)drawRc(a,t);}requestAnimationFrame(loop);})();
 setInterval(()=>{$('seek').value=cur();$('tm').textContent=fmt(cur())+' / '+fmt(dur);},250);
 </script></body></html>
