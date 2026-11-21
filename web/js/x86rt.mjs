@@ -20,7 +20,7 @@ const divr=(a,b)=>{const p=a/b,r=F(p);if(F(a)===a&&F(b)===b||!tie(p))return r;
 const addr=(a,b)=>{const p=a+b,r=F(p);if(F(a)===a&&F(b)===b||!tie(p))return r;
  const bb=p-a,e=(a-(p-bb))+(b-bb);return e===0?r:nudge(p,(e>0)===(p>0));};
 
-export const fp_add=v=>{f[S.sp]=addr(f[S.sp],v);},fp_mul=v=>{f[S.sp]=mulr(f[S.sp],v);},fp_sub=v=>{f[S.sp]=addr(f[S.sp],-v);},fp_subr=v=>{f[S.sp]=addr(v,-f[S.sp]);},fp_div=v=>{f[S.sp]=divr(f[S.sp],v);},fp_divr=v=>{f[S.sp]=divr(v,f[S.sp]);};
+export const fp_add=v=>{f[S.sp]=addr(f[S.sp],v);},fp_mul=v=>{f[S.sp]=mulr(f[S.sp],v);},fp_sub=v=>{f[S.sp]=addr(f[S.sp],-v);},fp_subr=v=>{f[S.sp]=addr(v,-f[S.sp]);},fp_div=v=>{f[S.sp]=divr(f[S.sp],v);},fp_div_raw=v=>{f[S.sp]=f[S.sp]/v;},fp_divr=v=>{f[S.sp]=divr(v,f[S.sp]);};
 export const fp_add_st=i=>{f[S.sp]=addr(f[S.sp],f[S.sp+i]);},fp_mul_st=i=>{f[S.sp]=mulr(f[S.sp],f[S.sp+i]);},fp_sub_st=i=>{f[S.sp]=addr(f[S.sp],-f[S.sp+i]);},fp_subr_st=i=>{f[S.sp]=addr(f[S.sp+i],-f[S.sp]);},fp_div_st=i=>{f[S.sp]=divr(f[S.sp],f[S.sp+i]);},fp_divr_st=i=>{f[S.sp]=divr(f[S.sp+i],f[S.sp]);};
 export const fp_add_to=i=>{f[S.sp+i]=addr(f[S.sp+i],f[S.sp]);},fp_mul_to=i=>{f[S.sp+i]=mulr(f[S.sp+i],f[S.sp]);},fp_sub_to=i=>{f[S.sp+i]=addr(f[S.sp+i],-f[S.sp]);},fp_subr_to=i=>{f[S.sp+i]=addr(f[S.sp],-f[S.sp+i]);},fp_div_to=i=>{f[S.sp+i]=divr(f[S.sp+i],f[S.sp]);},fp_divr_to=i=>{f[S.sp+i]=divr(f[S.sp],f[S.sp+i]);};
 const cmp=(a,b)=>{S.fsw=a!==a||b!==b?0x4500:a>b?0:a<b?0x100:0x4000;};
