@@ -20,7 +20,7 @@ const $=id=>document.getElementById(id),c=$('c').getContext('2d');c.fillStyle='#
 const xm=await (await fetch('assets/xm_times.json')).json(),dur=xm.length;$('seek').max=Math.floor(dur);
 const fmt=s=>Math.floor(s/60)+':'+String(Math.floor(s%60)).padStart(2,'0');
 let cp,ac,playing=false,t0=0,w0=0,started=false;const now=()=>performance.now()/1000,cur=()=>playing?Math.min(dur,t0+now()-w0):t0;
-async function init(){if(started)return;started=true;const {ChiptuneJsPlayer}=await import('./vendor/chiptune3.js');ac=new AudioContext();cp=new ChiptuneJsPlayer({context:ac,repeatCount:0});await new Promise(r=>cp.onInitialized(r));cp.play(await (await fetch('assets/music/SQUADEMO.XM')).arrayBuffer());playing=true;t0=0;w0=now();}
+async function init(){if(started)return;started=true;const {ChiptuneJsPlayer}=await import('./vendor/chiptune3.js');ac=new AudioContext();cp=new ChiptuneJsPlayer({context:ac,repeatCount:0});cp.gain.connect(ac.destination);await new Promise(r=>cp.onInitialized(r));cp.play(await (await fetch('assets/music/SQUADEMO.XM')).arrayBuffer());playing=true;t0=0;w0=now();}
 let ready=false;
 async function pp(){if(!ready)return;if(!started){await init();}else if(playing){t0=cur();playing=false;cp.pause();}else{cp.unpause();w0=now();playing=true;}$('pp').textContent=playing?'Pause':'Play';}
 function seek(t){if(!started)return;t=Math.max(0,Math.min(dur-.01,t));t0=t;w0=now();cp.setPos(t);}
