@@ -146,8 +146,16 @@ def gen(a):
     if m=='pusha': return 't=esp;'+''.join('esp=(esp-4)|0;wr32(esp,%s);'%('t' if r=='esp' else r) for r in R32)
     if m=='popa': return ''.join('esp=(esp+4)|0;'+('' if r=='esp' else '%s=rd32(esp-4);'%r) for r in reversed(R32))
     if m=='out': return 'R.out(edx&0xffff,%s);'%('eax&0xff' if ops[1]=='al' else 'eax')
+    if m in('rcr','rcl') and ops[1].strip()=='1':   # rotate through carry by 1 (pixel averaging 0x31b89: add bl,..; rcr bl,1)
+        d=opnd(ops[0]); v=get(d); w=8 if ops[0].strip() in ('al','ah','bl','bh','cl','ch','dl','dh') or 'BYTE' in ops[0] else 16 if ops[0].strip() in ('ax','bx','cx','dx','si','di','bp','sp') or ' WORD' in ' '+ops[0] else 32
+        M=((1<<w)-1) if w<32 else 0xffffffff
+        if m=='rcr': return 'a_=(%s)&%d;t=((a_>>>1)|(cf?%d:0))%s;cf=(a_&1)===1;'%(v,M,1<<(w-1),'|0' if w==32 else '')+put(d,'t')
+        return 'a_=(%s)&%d;t=(((a_<<1)|(cf?1:0))&%d)%s;cf=((a_>>>%d)&1)===1;'%(v,M,M,'|0' if w==32 else '',w-1)+put(d,'t')
     if m in('rol','ror'):
         d=opnd(ops[0]); k=int(num(ops[1]))&31 if ops[1]!='cl' else None; v=get(d); kk=str(k) if k is not None else '(ecx&31)'
+        w=8 if ops[0].strip() in ('al','ah','bl','bh','cl','ch','dl','dh') or 'BYTE' in ops[0] else 16 if ops[0].strip() in ('ax','bx','cx','dx','si','di','bp','sp') or ' WORD' in ' '+ops[0] else 32
+        if w<32:   # 8/16-bit rotate (the LZW bit reader 0x2c6e2 uses ror dh,1)
+            M=(1<<w)-1; return 'a_=%s&%d;k_=(%s)%%%d;t=k_?(%s)&%d:a_;'%(v,M,kk,w,'(a_<<k_|a_>>>(%d-k_))'%w if m=='rol' else '(a_>>>k_|a_<<(%d-k_))'%w,M)+put(d,'t')
         return 'a_=%s>>>0;k_=%s;t=k_?(%s):a_|0;'%(v,kk,'(a_<<k_|a_>>>(32-k_))|0' if m=='rol' else '(a_>>>k_|a_<<(32-k_))|0')+put(d,'t')
     if m=='sahf': return 'cf=(eax>>8&1)===1;zf=(eax>>14&1)===1;sf=(eax>>15&1)===1;'
     if m=='div': s=opnd(ops[0]); return 'k_=%s>>>0;if(edx===0){q_=Math.floor((eax>>>0)/k_);r_=(eax>>>0)-q_*k_;}else{b_=((BigInt(edx>>>0)<<32n)|BigInt(eax>>>0));q_=Number(b_/BigInt(k_));r_=Number(b_%%BigInt(k_));}eax=q_|0;edx=r_|0;'%get(s)   # unsigned; ponytail: no #DE on divide by zero or quotient overflow
@@ -155,6 +163,9 @@ def gen(a):
     if m=='movs':   # single string move, DF clear
         n=4 if 'DWORD' in ops[0] else 2 if ' WORD' in ' '+ops[0] else 1; ro,wo={4:('rd32','wr32'),2:('rd16','wr16'),1:('rd8','wr8')}[n]
         return '%s(edi,%s(esi));esi=(esi+%d)|0;edi=(edi+%d)|0;'%(wo,ro,n,n)
+    if m=='stos':   # single store, DF clear
+        n=4 if 'DWORD' in ops[0] else 2 if ' WORD' in ' '+ops[0] else 1; wo={4:'wr32',2:'wr16',1:'wr8'}[n]
+        return '%s(edi,eax);edi=(edi+%d)|0;'%(wo,n)
     if m=='rep' and re.match(r'(movs|stos)',ops[0] if ops else ''):   # ponytail: direction flag assumed clear
         n=4 if 'DWORD' in ops[0] else 2 if ' WORD' in ' '+ops[0] else 1; ro,wo={4:('rd32','wr32'),2:('rd16','wr16'),1:('rd8','wr8')}[n]
         if ops[0].startswith('movs'): return 'while(ecx!==0){%s(edi,%s(esi));esi=(esi+%d)|0;edi=(edi+%d)|0;ecx=(ecx-1)|0;}'%(wo,ro,n,n)
@@ -220,7 +231,7 @@ def fpu_(a,b,m,o):
     if o0==0xdf and b[1]==0xe0: return 'eax=(eax&~0xffff)|fsw;'
     raise Exception('fpu reg %x %x @%x %s'%(o0,b[1],a,o))
 FW={'add','sub','cmp','and','or','xor','test','neg','shl','shr','sar'}   # overwrite all flags we model
-FR={'adc','sbb','sahf_','lahf','pushf'}
+FR={'adc','sbb','rcr','rcl','sahf_','lahf','pushf'}
 def live(a,depth=60):
     """may the flags set by the instruction at a be read before being overwritten?  (conservative: unknown -> True)"""
     a=nxt.get(a)

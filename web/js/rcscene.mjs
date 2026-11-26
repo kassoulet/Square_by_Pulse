@@ -12,16 +12,18 @@ export function unpackInit(u8) {
 }
 export class RcScene {
   // pak: {get(name)->Uint8Array} (web/js/pak.js pakOpen); init: unpackInit(...)
+  file(n) { const b = n.split('\\').pop(); return RcScene.ext[b.toLowerCase()] || this.pak.get(b); }   // host files (not in the PAK), e.g. zebou.lzw: RcScene.ext['zebou.lzw'] = bytes
   constructor(init, pak) { this.i = init; this.pak = pak; this.reset(); }
   reset() {
     const i = this.i, m = R.m8; m.fill(0); let p = 0; for (const [a, b] of i.ranges) { m.set(i.data.subarray(p, p + b - a), a); p += b - a; }
     m.set(i.stack, i.esp); R.wr32(i.esp, 0x3ff50005); setRegs({eax: i.regs.eax | 0, ebx: i.regs.ebx | 0, ecx: i.regs.ecx | 0, edx: i.regs.edx | 0, esi: i.regs.esi | 0, edi: i.regs.edi | 0, ebp: i.regs.ebp | 0, esp: i.esp | 0});
-    R.S.sp = 8; R.f.fill(0); this.files = []; this.dac = [0, 0]; this.pal = new Uint8Array(768); this.screen = new Uint8Array(320 * 480); this.rows = 200; this.n = -1; this.done = false; this.ck = new Map(); this.base = null; this.hooks();
+    R.S.sp = 8; R.f.fill(0); R.MS.q = i.mal || null; R.MS.i = 0; this.files = []; this.dac = [0, 0]; this.pal = new Uint8Array(768); this.screen = new Uint8Array(320 * 480); this.rows = 200; this.n = -1; this.done = false; this.ck = new Map(); this.base = null; this.hooks();
   }
   hooks() {
     const H = R.H, i = this.i, T = i.ticks; R.S.active = this; H.TPF = 2;
     H.pos = () => { const t = R.rd32(0x10ce4c); let lo = 0, hi = T.length; while (lo < hi) { const m = (lo + hi) >> 1; if (T[m] <= t) lo = m + 1; else hi = m; } R.wr32(0x10ce28, i.pos[Math.max(0, lo - 1)]); };
-    H.n_open = a => { let n = ''; for (let c; (c = R.rd8(a++)); ) n += String.fromCharCode(c); this.files.push({d: this.pak.get(n.split('\\').pop()), p: 0}); return this.files.length; };
+    H.n_open = a => { let n = ''; for (let c; (c = R.rd8(a++)); ) n += String.fromCharCode(c); this.files.push({d: this.file(n), p: 0}); return this.files.length; };
+    H.slurp = a => { let n = ''; for (let c; (c = R.rd8(a++)); ) n += String.fromCharCode(c); return this.file(n); };
     H.n_read = (h, d, n) => { const f = this.files[h - 1]; R.m8.set(f.d.subarray(f.p, f.p + n), d); f.p += n; };
     H.out = (p, v) => { const d = this.dac; if (p === 0x3c8) { d[0] = v; d[1] = 0; } else if (p === 0x3c9) { this.pal[d[0] * 3 + d[1]] = v; if (++d[1] === 3) { d[1] = 0; d[0] = (d[0] + 1) & 255; } } };
     H.present = (buf, rows) => { this.rows = rows; this.screen.set(R.m8.subarray(buf, buf + 320 * rows)); this.palShown = this.pal.slice(); };   // the frame as shown, with the DAC as of the flip
@@ -34,11 +36,11 @@ export class RcScene {
     for (let a = 0; a < LIM; a += PG) { const b = B && B.get(a), e = (a + PG) >> 2; let d = false;
       if (b) { const b32 = new Uint32Array(b.buffer); for (let x = a >> 2, k = 0; x < e; x++, k++) if (m32[x] !== b32[k]) { d = true; break; } } else for (let x = a >> 2; x < e; x++) if (m32[x]) { d = true; break; }
       if (d) pg.push([a, m.slice(a, a + PG)]); }
-    this.ck.set(this.n, {pg, regs: getRegs(), sp: R.S.sp, f: R.f.slice(), pal: this.pal.slice(), dac: this.dac.slice(), files: this.files.map(f => ({d: f.d, p: f.p})), done: this.done, rpc: R.S.rpc, rfn: R.S.rfn, screen: this.screen.slice(), rows: this.rows, palShown: this.palShown && this.palShown.slice()});
+    this.ck.set(this.n, {pg, regs: getRegs(), sp: R.S.sp, f: R.f.slice(), pal: this.pal.slice(), dac: this.dac.slice(), ms: R.MS.i, files: this.files.map(f => ({d: f.d, p: f.p})), done: this.done, rpc: R.S.rpc, rfn: R.S.rfn, screen: this.screen.slice(), rows: this.rows, palShown: this.palShown && this.palShown.slice()});
   }
   restore(n) {
     const c = this.ck.get(n); R.m8.fill(0); for (const [a, d] of this.base) R.m8.set(d, a); for (const [a, d] of c.pg) R.m8.set(d, a);
-    setRegs(c.regs); R.S.sp = c.sp; R.f.set(c.f); this.pal = c.pal.slice(); this.dac = c.dac.slice(); this.files = c.files.map(f => ({d: f.d, p: f.p})); this.n = n; this.done = c.done; R.S.rpc = c.rpc; R.S.rfn = c.rfn; this.screen.set(c.screen); this.rows = c.rows; this.palShown = c.palShown && c.palShown.slice(); this.hooks();
+    setRegs(c.regs); R.S.sp = c.sp; R.f.set(c.f); this.pal = c.pal.slice(); this.dac = c.dac.slice(); this.files = c.files.map(f => ({d: f.d, p: f.p})); this.n = n; R.MS.i = c.ms; this.done = c.done; R.S.rpc = c.rpc; R.S.rfn = c.rfn; this.screen.set(c.screen); this.rows = c.rows; this.palShown = c.palShown && c.palShown.slice(); this.hooks();
   }
   // run to the next flip; returns false when the scene has returned
   step() {
@@ -58,3 +60,5 @@ export class RcScene {
     while (this.n < n) { if (!this.step()) return false; if (budget && performance.now() - t0 > budget) break; } return true;
   }
 }
+
+RcScene.ext = {};

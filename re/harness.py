@@ -71,12 +71,18 @@ def flip(rows,*a):
 E.mu.hook_add(UC_HOOK_CODE,getstatus,begin=0x3a07c,end=0x3a07c)
 for a,rows in ((0x1d0cf,200),(0x1d1b5,240),(0x1d231,480)): E.mu.hook_add(UC_HOOK_CODE,lambda *x,rows=rows:flip(rows),begin=a,end=a)   # present routines: 0x1d0cf 200 rows (or plain copy), 0x1d1b5 240 rows, 0x1d231 480 rows (eax = source)
 SC=[0x2f7d7,0x29a81,0x366f2,0x305f7,0x1faa1,0x2edbd,0x31f0a,0x28f64,0x243a9,0x34674,0x33b7e,0x32a9a,0x2f420,0x338a5,0x390ab]
+SNAPSC=os.environ.get('SNAPSCENE'); SNAPOUT=os.environ.get('SNAPOUT')   # SNAPSCENE=hex scene entry, SNAPOUT=file: snapshot at that scene's entry and stop (full run needed for scenes that depend on heap state left by earlier scenes)
+def snapsc(*x):
+    if SNAPSC and SNAPOUT and E.ireg('EIP')==int(SNAPSC,16): save(SNAPOUT); E.mu.emu_stop()
+if SNAPSC: E.mu.hook_add(UC_HOOK_CODE,snapsc,begin=int(SNAPSC,16),end=int(SNAPSC,16))
 for a in SC: E.mu.hook_add(UC_HOOK_CODE,lambda *x,a=a:print('SCENE %#x flip %d t=%.2f order/row %d'%(a,fl[0],E.u32(0x10ce4c)/60,E.u32(0x10ce28)),flush=True),begin=a,end=a)
 if LOAD:
     load(LOAD); st=ireg_eip[0]
     if JUMP:   # stub: call scene; hlt-equivalent = stop hook
         STUB=0x3ff50000; E.mu.mem_write(STUB,b'\xe8'+struct.pack('<i',JUMP-(STUB+5))+b'\x90'*4)
-        E.mu.hook_add(UC_HOOK_CODE,lambda *a:(print('SCENE RETURNED flip',fl[0]),E.mu.emu_stop()),begin=STUB+5,end=STUB+5); st=STUB
+        E.mu.hook_add(UC_HOOK_CODE,lambda *a:(print('SCENE RETURNED flip',fl[0]),E.mu.emu_stop()),begin=STUB+5,end=STUB+5); st=STUB-6
+        # the snapshot does not carry the x87 control word and Unicorn's softfloat keeps 80-bit precision until the first fldcw: load CW=0 (PC=24, nearest) like the demo's own state before the scene
+        E.mu.mem_write(STUB-0x10,struct.pack('<H',int(os.environ.get('FPCW','0'),16))); E.mu.mem_write(STUB-6,b'\xd9\x2d'+struct.pack('<I',STUB-0x10))
     E.run(st)
 else: E.run(0x3b1b8)
 print('stopped',hex(E.ireg('EIP')),'flips',fl[0],E.tr[-4:])

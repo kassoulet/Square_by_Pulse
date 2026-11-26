@@ -1,6 +1,7 @@
 // Check web/js/rcscene.mjs (the browser driver) against the golden frames: node tools/rc_scene_test.mjs INIT.bin.gz GOLDDIR [frames=40]  (frame n of the driver = golden file 2n)
 import fs from 'fs'; import zlib from 'zlib'; import {RcScene, unpackInit} from '../web/js/rcscene.mjs'; import {pakOpen} from '../web/js/pak.js';
 const [initf, gd, N = 40] = process.argv.slice(2);
+RcScene.ext['zebou.lzw'] = new Uint8Array(fs.readFileSync(new URL('../web/assets/ZEBOU.LZW', import.meta.url)));
 const pak = pakOpen(new Uint8Array(fs.readFileSync(new URL('../web/assets/SQUARE.PAK', import.meta.url)))), S = new RcScene(unpackInit(new Uint8Array(zlib.gunzipSync(fs.readFileSync(initf)))), pak);
 const bad = n => { const g = fs.readFileSync(gd + '/f' + String(2 * n).padStart(4, '0') + '.bin'); let d = 0; for (let i = 0; i < g.length; i++) d += S.screen[i] !== g[i]; return d; };
 // DAC: replay the guest's palette port writes (dac.json: [tag, port, value]; tag <= 2n-1 precede present n) and compare with the palette the driver shows with frame n

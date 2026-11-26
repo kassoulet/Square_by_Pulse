@@ -2,7 +2,8 @@
 // and the DAC palette against the guest capture of re/rc_gold.py.   node tools/rc_run.mjs FLAT.bin GOLDDIR [maxFrames]
 import fs from 'fs'; import * as R from '../web/js/x86rt.mjs'; import {FN, setRegs} from '../web/js/sqr.gen.mjs'; import {pakOpen} from '../web/js/pak.js';
 const [flat, gd, maxF = 1e9] = process.argv.slice(2), J = n => JSON.parse(fs.readFileSync(gd + '/' + n));
-R.m8.set(fs.readFileSync(flat));
+if (process.env.PC53) R.setPC53(true);
+R.m8.set(fs.readFileSync(flat)); if (process.env.MAL) R.MS.q = JSON.parse(fs.readFileSync(process.env.MAL));
 const meta = J('meta.json'), inputs = J('inputs.json'), dacg = J('dac.json'), pak = pakOpen(new Uint8Array(fs.readFileSync(new URL('../SQUARE.PAK', import.meta.url))));
 R.m8.set(fs.readFileSync(gd + '/stack.bin'), meta.ESP); R.wr32(meta.ESP, 0x3ff50005);
 setRegs({eax: meta.EAX | 0, ebx: meta.EBX | 0, ecx: meta.ECX | 0, edx: meta.EDX | 0, esi: meta.ESI | 0, edi: meta.EDI | 0, ebp: meta.EBP | 0, esp: meta.ESP | 0});
@@ -11,7 +12,8 @@ let poll = 0, frame = 0, bad = 0, badPal = 0, dacIdx = 0, files = [], pal = new 
 const dec = new TextDecoder();
 R.H.TPF = 2; const posAt = {}; for (const [, pos, tick] of inputs) posAt[tick] = pos;   // the guest's song position is a pure function of the tick (harness: xm_times lookup)
 R.H.pos = () => { poll++; if (process.env.TR && posAt[R.rd32(0x10ce4c)] === undefined) console.log("MISS tick", R.rd32(0x10ce4c), "frame", frame); if (process.env.TR) console.log("poll", poll, "tick", R.rd32(0x10ce4c), "pos", posAt[R.rd32(0x10ce4c)], "gold", JSON.stringify(inputs[poll-1]), "fr", frame); R.wr32(0x10ce28, posAt[R.rd32(0x10ce4c)] ?? 0); };   // dt / callbacks / tick now come from the recompiled engine layer (pre338.js)
-R.H.n_open = a => { let n = ''; for (let c; (c = R.rd8(a++)); ) n += String.fromCharCode(c); files.push({d: pak.get(n.split('\\').pop()), p: 0}); return files.length; };
+R.H.n_open = a => { let n = ''; for (let c; (c = R.rd8(a++)); ) n += String.fromCharCode(c); const bn = n.split('\\').pop(); files.push({d: pak.names.includes(bn.toLowerCase()) ? pak.get(bn) : new Uint8Array(fs.readFileSync(new URL('../' + bn.toUpperCase(), import.meta.url))), p: 0}); return files.length; };   // not in the PAK (zebou.lzw): the host file next to the EXE
+R.H.slurp = a => { let n = ''; for (let c; (c = R.rd8(a++)); ) n += String.fromCharCode(c); const bn = n.split('\\').pop(); return pak.names.includes(bn.toLowerCase()) ? pak.get(bn) : new Uint8Array(fs.readFileSync(new URL('../' + bn.toUpperCase(), import.meta.url))); };   // whole file by guest name
 R.H.n_read = (h, d, n) => { const f = files[h - 1]; R.m8.set(f.d.subarray(f.p, f.p + n), d); f.p += n; };
 let nw = 0, wl = [], nwSave = 0; R.H.out = (p, v) => { if (p === 0x3c9) { nw++; wl.push(v); } if (p === 0x3c8) dac = [v, 0]; else if (p === 0x3c9) { pal[dac[0] * 3 + dac[1]] = v; if (++dac[1] === 3) { dac[1] = 0; dac[0] = (dac[0] + 1) & 255; } } };
 class Stop {}
@@ -20,7 +22,7 @@ const SLL = []; if (process.env.SL) R.H.tlog = (k, x, r) => { if (frame >= 79) S
 const VTL = []; if (process.env.VT) globalThis.VT = (ecx, esp) => { if (frame >= 79) VTL.push([frame, ecx, [0x8c, 0x90, 0x94, 0xf4].map(o => R.rd32(esp + o) >>> 0)]); };
 let tcalc = 0, tlast = performance.now();   // time spent in the scene code (excluding the comparison below)
 R.H.present = (buf) => {
-  tcalc += performance.now() - tlast; if (process.env.MEMDUMP && frame === +process.env.MEMDUMP) fs.writeFileSync(process.env.MEMF, R.m8.subarray(0x100000, 0x400000));
+  tcalc += performance.now() - tlast; if (process.env.MEMDUMP && frame === +process.env.MEMDUMP) fs.writeFileSync(process.env.MEMF, R.m8.subarray(+process.env.MEMS||0x100000, +process.env.MEME||0x400000));
   const g = fs.readFileSync(gd + '/f' + String(2 * frame).padStart(4, '0')   // the harness hook fires twice per present (ISR trampoline re-enters 0x1d0cf), so golden frame = 2*loop
   + '' + '.bin'); let d = 0, pdif = 0;
   if (process.env.DUMP && frame === +process.env.DUMP) fs.writeFileSync(process.env.DUMPF, R.m8.subarray(buf, buf + 64000));   // debug: dump my frame buffer

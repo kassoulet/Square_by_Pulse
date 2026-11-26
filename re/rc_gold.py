@@ -3,16 +3,17 @@ meta.json (registers at entry), stack.bin (0x800 bytes at esp), inputs.json ([dt
 dac.json (VGA DAC port writes [frame, port, value]).  usage: LOAD=snap.pkl JUMP=338a5 TOFF=207.8 PYTHONPATH=. python3 rc_gold.py OUT [ENTRY CALLRET]"""
 import sys,os,json,runpy
 out=sys.argv[1]; ENTRY=int(sys.argv[2],16) if len(sys.argv)>2 else 0x338a5; CALLRET=[int(x,16) for x in (sys.argv[3] if len(sys.argv)>3 else '339c1').split(',')]   # one or more poll return sites; os.makedirs(out,exist_ok=True)
-sys.argv=['harness.py',str(10**6),out+'/png','100000']
+sys.argv=['harness.py',os.environ.get('NF',str(10**6)),out+'/png','100000']
 import emucore as E
 from unicorn import *
-inp=[]; dac=[]; n=[0]
+inp=[]; dac=[]; n=[0]; MEMAT=[int(x) for x in os.environ.get('MEMAT','').split(',') if x]   # MEMAT=n,n..: dump the low 128 MB at those present counts (mem%04d.bin)
 def entry(*a):
     esp=E.ireg('ESP'); json.dump({r:E.ireg(r) for r in ('EAX','EBX','ECX','EDX','ESI','EDI','EBP','ESP')},open(out+'/meta.json','w'))
     open(out+'/stack.bin','wb').write(bytes(E.mu.mem_read(esp,0x800)))
 def poll(*a): inp.append([E.ireg('EAX'),E.u32(0x10ce28),E.u32(0x10ce4c),E.ireg('ESP')])
 ROWS={0x1d0cf:200,0x1d1b5:240,0x1d231:480}   # present routines and their row counts (harness.py); file size = 320*rows
 def present(*a):
+    if n[0] in MEMAT: open('%s/mem%04d.bin'%(out,n[0]),'wb').write(bytes(E.mu.mem_read(0,0x8000000)))
     open('%s/f%04d.bin'%(out,n[0]),'wb').write(bytes(E.mu.mem_read(E.ireg('EAX'),320*ROWS[E.ireg('EIP')]))); n[0]+=1
     json.dump(inp,open(out+'/inputs.json','w')); json.dump(dac,open(out+'/dac.json','w'))
 E.extra_out.append(lambda port,val: dac.append([n[0],port,val]))
