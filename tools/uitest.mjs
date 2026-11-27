@@ -33,7 +33,7 @@ await ev('document.getElementById("c").getContext("2d").clearRect(0,0,320,200)')
 const lit4=await ev('(()=>{const d=document.getElementById("c").getContext("2d").getImageData(0,0,320,200).data;let n=0;for(let i=0;i<d.length;i+=4)if(d[i]>20)n++;return n})()');ok(lit4>2000,'recompiled silhouette scene 0x28f64 (108.73-132.8 s) draws: '+lit4+' lit pixels');
 await ev('(()=>{const e=document.getElementById("seek");e.value=8;e.dispatchEvent(new Event("input"));})()');await wait(8000);
 const o=await ev('(()=>{const k=document.getElementById("c"),d=k.getContext("2d").getImageData(0,0,320,k.height).data;let n=0;for(let i=0;i<d.length;i+=4)if(d[i]>20)n++;return [k.height,n]})()');ok(o[0]===480&&o[1]>2000,'recompiled portrait scene (0-21 s) draws at 8 s: canvas height '+o[0]+', '+o[1]+' lit pixels');
-for(const [t,w,nm] of [[75,6000,'0x1faa1 (73-78 s)'],[25,9000,'0x366f2 (21-52 s)'],[55,9000,'0x305f7 (52-73 s)'],[90,9000,'0x2edbd (79-100 s)']]){
+for(const [t,w,nm] of [[75,6000,'0x1faa1 (73-78 s)'],[25,9000,'0x366f2 (21-52 s)'],[55,9000,'0x305f7 (52-73 s)'],[90,9000,'0x2edbd (79-100 s)'],[145,9000,'0x243a9 (133-171 s)']]){
 await ev('(()=>{const e=document.getElementById("seek");e.value='+t+';e.dispatchEvent(new Event("input"));})()');await wait(w);
 const q=await ev('(()=>{const k=document.getElementById("c"),d=k.getContext("2d").getImageData(0,0,320,200).data;let n=0;for(let i=0;i<d.length;i+=4)if(d[i]>20||d[i+1]>20||d[i+2]>20)n++;return n})()');ok(q>300,'recompiled '+nm+' draws at '+t+' s: '+q+' lit pixels');}
 }catch(e){console.log('FAIL',e);bad++;}

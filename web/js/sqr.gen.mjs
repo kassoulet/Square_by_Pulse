@@ -16,7 +16,7 @@ const PRESENT_END = () => R.H.yield && R.H.yield();
 // 0x31c33 blend (pusha/popa function, registers untouched): dst[i] = (T1[src[i]] + T2[dst[i]] & 255) ^ 0x80 over 0x4b000 bytes, T1/T2 = 256-byte rows of the 64 KB LUT [0x10ce80] selected by cl / by the low byte of ebx
 function BLEND(d, s, a, c) { const m = R.m8, L = R.rd32(0x10ce80) & 0xffff0000, t1 = L | (c & 255) << 8, t2 = L | (a & 255) << 8; for (let i = 0; i < 0x4b000; i++) m[d + i] = (m[t1 + m[s + i]] + m[t2 + m[d + i]] & 255) ^ 128; }
 // 0x3c104 = Watcom C++ array constructor helper: descriptor d: ctor address at +1, element size at +13; calls ctor(eax=element, edx=size) n times (the EH bookkeeping is dropped)
-function ARR(p, n, d) { const c = R.rd32(d + 1), z = R.rd32(d + 13); if (!p) return; for (; n > 0; n--) { eax = p; edx = z; callf(c); p += z; } }
+function ARR(p, n, d) { const c = R.rd32(d + 1), z = R.rd32(d + 13), p0 = p; if (!p) return; for (; n > 0; n--) { eax = p; edx = z; callf(c); p += z; } eax = p0; }   // the helper returns the array start (the caller does lea ebx,[eax-0x28])
 // 0x2c25b (stdcall ret 0x14, pusha/popa): scaled sprite blit.  args dst,sx,sy,tex,bright (stack); x0=eax, x1=ebx, y0=edx, y1=ecx on entry.  Builds the 256-entry ramp T at 0x106d30, then per destination pixel
 // dst = L[(T[tex[..]] + dst) & 255] with L = 256-byte table at 0x1062b8; 16.16 steps along x (column step table at 0x106530) and y.  The scratch globals 0x106508-0x10652c are written as the original does.
 function SPR(eax_, ebx_, ecx_, edx_, sp) {
